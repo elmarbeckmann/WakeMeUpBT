@@ -33,7 +33,7 @@ No other dependencies.
 ## Install
 
 ```
-git clone <repository-url> btsleep
+git clone https://github.com/elmarbeckmann/btsleep.git btsleep
 cd btsleep
 make install
 ```
