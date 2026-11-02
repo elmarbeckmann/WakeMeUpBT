@@ -1,87 +1,133 @@
 # btsleep
 
-Turns Bluetooth off when a Mac goes to sleep and back on when you wake it.
+Stop a MacBook from waking up every 12 seconds while it sleeps. btsleep turns Bluetooth off when the Mac goes to sleep and turns it back on when you open the lid.
 
-## Why
+I wrote it for my M5 Pro MacBook Pro after it lost battery overnight with the lid closed. If your Mac drains its battery in sleep and `pmset -g log` is full of `centauri` wake reasons, this is probably the same bug.
 
-On some Apple Silicon MacBooks (reported on M5 Pro, macOS 26 and 27) the Wi-Fi/Bluetooth chip wakes the Mac every ~12 seconds during sleep. `pmset -g log` shows this:
+## The problem
+
+One morning my MacBook Pro (Mac17,8, macOS 27.0.1) had lost 7% overnight with the lid closed. `pmset -g log` showed why. The Mac had woken itself about 3,600 times in 12 hours, roughly 290 times an hour, and every wake had the same reason:
 
 ```
-DarkWake from Deep Idle ... due to smc.sysState.Wake(0x70070000) wifibt SMC.OutboxNotEmpty centauri-beta/
+DarkWake from Deep Idle [CDN] : due to smc.sysState.Wake(0x70070000) wifibt SMC.OutboxNotEmpty centauri-beta/ Using BATT (Charge:65%) 5 secs
 ```
 
-The author measured about 290 such wakes per hour overnight. Turning Bluetooth off and on stops the loop. btsleep does that automatically.
+A DarkWake is a wake with the screen off. Each one lasted 3 to 8 seconds, then the Mac went back to sleep for about 5 seconds, then the next wake came. So the Mac was awake about half the night. `wifibt` and `centauri` point at the combined Wi-Fi and Bluetooth chip.
 
-Reports:
+I am not the only one. Other people see the same log lines on M5 Pro MacBook Pros, some with 20 to 30% drain per night. See the [references](#references). Apple has not commented on it, as far as I can find.
 
-- https://discussions.apple.com/thread/256265048
-- https://forums.macrumors.com/threads/centauri-alpha-prevents-sleep.2482169/
+Turning Bluetooth off and on in Control Center stops the loop. It came back for me after a while, and I did not want to do that by hand every evening. So btsleep does it.
 
-## How it works
+### Do you have this bug?
 
-- It hooks system sleep through IOKit and waits until Bluetooth is off before it allows sleep.
-- It turns Bluetooth on again at full wake only. A DarkWake does not turn it on.
-- It restores Bluetooth only if btsleep turned it off.
+Close the lid for two minutes, open it, and run:
+
+```sh
+pmset -g log | grep DarkWake | tail -20
+```
+
+If you see a `centauri-alpha` or `centauri-beta` DarkWake every 10 to 15 seconds, you have it. To count all of them in the log:
+
+```sh
+pmset -g log | grep -c centauri
+```
+
+## What btsleep does
+
+- Just before the Mac sleeps, it turns Bluetooth off. It holds sleep until Bluetooth is off, through the IOKit sleep notification.
+- When the screen wakes, it turns Bluetooth back on. A DarkWake does not wake the screen, so Bluetooth stays off for the whole night.
+- It only turns Bluetooth on if btsleep turned it off. If you had Bluetooth off yourself, it stays off.
+
+In my test, the Mac woke every 12 seconds without btsleep. With btsleep, it woke one to three times in the first minute and then slept until I opened the lid.
+
+It is one Swift file of about 70 lines, with no dependencies. A LaunchAgent starts it at login.
 
 ## Requirements
 
-- macOS on Apple Silicon (tested on macOS 27.0.1, MacBook Pro Mac17,8)
-- Xcode Command Line Tools (`swiftc`)
-
-No other dependencies.
+- A Mac with Apple Silicon. I tested it on a MacBook Pro Mac17,8 (M5 Pro) with macOS 27.0.1.
+- The Xcode Command Line Tools for `swiftc`. Run `xcode-select --install` if you do not have them.
 
 ## Install
 
-```
-git clone https://github.com/elmarbeckmann/btsleep.git btsleep
+```sh
+git clone https://github.com/elmarbeckmann/btsleep.git
 cd btsleep
 make install
 ```
 
-The binary stays in the clone folder. Do not move or delete the folder after install. If you move it, run `make install` again.
+`make install` builds the binary, writes the LaunchAgent to `~/Library/LaunchAgents/local.btsleep.plist` and starts it.
 
-macOS may ask for Bluetooth permission.
+The binary stays in the folder you cloned. If you move or delete that folder, btsleep stops working. Run `make install` again from the new place.
 
-## Check it works
+macOS may ask you to allow Bluetooth access for btsleep the first time it runs.
 
-```
+## Check that it works
+
+```sh
 tail ~/Library/Logs/btsleep.log
 ```
 
-The log shows `started`, `sleep: bluetooth off` and `wake: bluetooth on`. Times are UTC.
-
-To count the wakes:
+After you close and open the lid, the log shows lines like these. The times are in UTC.
 
 ```
-pmset -g log | grep -c centauri
+2026-11-02 07:48:46 +0000 started, bluetooth power = 1
+2026-11-02 07:49:45 +0000 sleep: bluetooth off
+2026-11-02 07:51:02 +0000 wake: bluetooth on
 ```
 
-## Disable without uninstalling
+The next morning, `pmset -g log | grep -c centauri` should grow by a few per hour, not by hundreds.
 
-```
+## Turn it off
+
+To stop it and keep it from starting at the next login:
+
+```sh
 launchctl disable gui/$(id -u)/local.btsleep
 launchctl bootout gui/$(id -u)/local.btsleep
 ```
 
-Run `make install` to enable it again.
+Run `make install` to turn it on again.
 
-## Uninstall
+To remove it completely:
 
-```
+```sh
 make uninstall
 ```
 
+Then delete the folder.
+
 ## Limitations
 
-- It uses a private Apple API (the same one blueutil uses). A macOS update can remove it. The log then shows "IOBluetooth power functions not found".
+- btsleep uses a private Apple function to switch Bluetooth, `IOBluetoothPreferenceSetControllerPowerState`. [blueutil](https://github.com/toy/blueutil) uses the same one. A macOS update can remove it. If that happens, the log says `IOBluetooth power functions not found`.
 - If btsleep restarts while the Mac sleeps, it forgets that it turned Bluetooth off. Bluetooth then stays off until you turn it on.
-- Bluetooth keyboards and mice cannot wake the Mac while it sleeps.
+- A Bluetooth keyboard or mouse cannot wake the Mac while it sleeps, because Bluetooth is off.
+- It does not fix the bug in macOS. It only avoids it. When Apple fixes the bug, you do not need btsleep anymore.
 
-## Alternatives
+## Other ways to fix it
 
-- sleepwatcher + blueutil: https://github.com/toy/blueutil
-- BluetoothGuardian: https://github.com/hustuhao/BluetoothGuardian
+- Turn Bluetooth off and on in Control Center when it happens. This is enough if the loop does not come back for you.
+- [sleepwatcher](https://www.bernhard-baehr.de/) with [blueutil](https://github.com/toy/blueutil). Both are on Homebrew. sleepwatcher runs a script when the Mac sleeps and wakes, and blueutil switches Bluetooth. This is the classic way to do it and does the same as btsleep.
+- [BluetoothGuardian](https://github.com/hustuhao/BluetoothGuardian) turns Bluetooth off when the screen turns off. It is written in Go and needs blueutil.
+
+I wanted a single small program without dependencies, so I built my own.
+
+## References
+
+Reports of the same bug:
+
+- [MacBook Pro M5 Pro: DarkWake causing overnight battery drain](https://discussions.apple.com/thread/256265048), Apple Community
+- [Centauri-Alpha prevents sleep](https://forums.macrumors.com/threads/centauri-alpha-prevents-sleep.2482169/), MacRumors Forums
+- [MacBook Air M4 - Battery Drain During Sleep](https://developer.apple.com/forums/thread/787549), Apple Developer Forums. Same `wifibt SMC.OutboxNotEmpty` wake reason on an M4 MacBook Air.
+
+Apple documentation for the APIs btsleep uses:
+
+- [Technical Q&A QA1340: Registering and unregistering for sleep and wake notifications](https://developer.apple.com/library/archive/qa/qa1340/_index.html)
+- [NSWorkspace.screensDidWakeNotification](https://developer.apple.com/documentation/appkit/nsworkspace/screensdidwakenotification)
+
+## Credits
+
+I made btsleep with help from [Claude](https://claude.ai). Claude helped me read the power log, find the other reports and write the code. I tested it on my own MacBook.
 
 ## License
 
-MIT. See LICENSE.
+MIT. See [LICENSE](LICENSE).
