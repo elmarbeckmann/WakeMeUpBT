@@ -45,7 +45,8 @@ It is one Swift file of about 85 lines, with no dependencies. A LaunchAgent star
 
 ## Requirements
 
-- A Mac with Apple Silicon. I tested it on a MacBook Pro Mac17,8 (M5 Pro) with macOS 27.0.1.
+- A Mac. I tested it only on my MacBook Pro Mac17,8 (M5 Pro) with macOS 27.0.1. The code does not depend on the chip, and the Bluetooth function it uses is the same one blueutil uses on Intel and Apple Silicon Macs. So it should work on other Macs too.
+- It only helps if Bluetooth causes the wakes. Check with `pmset -g log | grep DarkWake` first. On M5 Macs the wake reason says `centauri`, on other Macs look for `wifibt` or `bluetooth`. If you try btsleep on another model, please open an issue and tell me if it worked.
 - The Xcode Command Line Tools for `swiftc`. Run `xcode-select --install` if you do not have them. You need them for both install methods, because Homebrew builds btsleep from source.
 
 ## Install
