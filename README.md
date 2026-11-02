@@ -34,13 +34,14 @@ pmset -g log | grep -c centauri
 
 ## What btsleep does
 
-- Just before the Mac sleeps, it turns Bluetooth off. It holds sleep until Bluetooth is off, through the IOKit sleep notification.
+- Just before the Mac sleeps, it turns Bluetooth off. It gets the IOKit sleep notification and switches Bluetooth off before it lets the sleep continue.
 - When the screen wakes, it turns Bluetooth back on. A DarkWake does not wake the screen, so Bluetooth stays off for the whole night.
 - It only turns Bluetooth on if btsleep turned it off. If you had Bluetooth off yourself, it stays off.
+- It writes a small file when it turns Bluetooth off, `~/Library/Application Support/btsleep/bluetooth-off`. If btsleep restarts or the Mac reboots, it reads that file and still turns Bluetooth back on.
 
 In my test, the Mac woke every 12 seconds without btsleep. With btsleep, it woke one to three times in the first minute and then slept until I opened the lid.
 
-It is one Swift file of about 70 lines, with no dependencies. A LaunchAgent starts it at login.
+It is one Swift file of about 85 lines, with no dependencies. A LaunchAgent starts it at login.
 
 ## Requirements
 
