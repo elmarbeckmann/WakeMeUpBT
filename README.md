@@ -55,9 +55,9 @@ cd btsleep
 make install
 ```
 
-`make install` builds the binary, writes the LaunchAgent to `~/Library/LaunchAgents/local.btsleep.plist` and starts it.
+`make install` builds the binary, copies it to `~/.local/bin/btsleep`, writes the LaunchAgent to `~/Library/LaunchAgents/dev.elmar.btsleep.plist` and starts it.
 
-The binary stays in the folder you cloned. If you move or delete that folder, btsleep stops working. Run `make install` again from the new place.
+You can delete the clone folder after the install. To put the binary somewhere else, run `make install PREFIX=/some/path`. It then goes to `/some/path/bin/btsleep`.
 
 macOS may ask you to allow Bluetooth access for btsleep the first time it runs.
 
@@ -67,12 +67,12 @@ macOS may ask you to allow Bluetooth access for btsleep the first time it runs.
 tail ~/Library/Logs/btsleep.log
 ```
 
-After you close and open the lid, the log shows lines like these. The times are in UTC.
+After you close and open the lid, the log shows lines like these. The times are in your local time.
 
 ```
-2026-11-02 07:48:46 +0000 started, bluetooth power = 1
-2026-11-02 07:49:45 +0000 sleep: bluetooth off
-2026-11-02 07:51:02 +0000 wake: bluetooth on
+2026-11-02T08:48:46+01:00 started, bluetooth power = 1
+2026-11-02T08:49:45+01:00 sleep: bluetooth off
+2026-11-02T08:51:02+01:00 wake: bluetooth on
 ```
 
 The next morning, `pmset -g log | grep -c centauri` should grow by a few per hour, not by hundreds.
@@ -82,8 +82,8 @@ The next morning, `pmset -g log | grep -c centauri` should grow by a few per hou
 To stop it and keep it from starting at the next login:
 
 ```sh
-launchctl disable gui/$(id -u)/local.btsleep
-launchctl bootout gui/$(id -u)/local.btsleep
+launchctl disable gui/$(id -u)/dev.elmar.btsleep
+launchctl bootout gui/$(id -u)/dev.elmar.btsleep
 ```
 
 Run `make install` to turn it on again.
@@ -94,12 +94,11 @@ To remove it completely:
 make uninstall
 ```
 
-Then delete the folder.
+This also removes the binary and the state file. The log stays in `~/Library/Logs/btsleep.log`.
 
 ## Limitations
 
 - btsleep uses a private Apple function to switch Bluetooth, `IOBluetoothPreferenceSetControllerPowerState`. [blueutil](https://github.com/toy/blueutil) uses the same one. A macOS update can remove it. If that happens, the log says `IOBluetooth power functions not found`.
-- If btsleep restarts while the Mac sleeps, it forgets that it turned Bluetooth off. Bluetooth then stays off until you turn it on.
 - A Bluetooth keyboard or mouse cannot wake the Mac while it sleeps, because Bluetooth is off.
 - It does not fix the bug in macOS. It only avoids it. When Apple fixes the bug, you do not need btsleep anymore.
 

@@ -18,15 +18,26 @@ guard let g = dlsym(lib, "IOBluetoothPreferenceGetControllerPowerState"),
 let getPower = unsafeBitCast(g, to: GetPower.self)
 let setPower = unsafeBitCast(s, to: SetPower.self)
 
-func log(_ msg: String) { print("\(Date()) \(msg)") }
+let timeFormat = ISO8601DateFormatter()
+timeFormat.timeZone = .current
+func log(_ msg: String) { print("\(timeFormat.string(from: Date())) \(msg)") }
 
 // IOKit message constants are C macros that Swift does not import.
 let kCanSystemSleep: UInt32 = 0xE000_0270
 let kSystemWillSleep: UInt32 = 0xE000_0280
 
-// True only when this program turned Bluetooth off. DarkWakes put the system to
-// sleep again while Bluetooth is off; the flag keeps us from losing the user's state.
-var turnedOff = false
+// The marker file exists only while this program has Bluetooth turned off. DarkWakes
+// put the system to sleep again while Bluetooth is off; the marker keeps us from
+// losing the user's state. It is a file, not a variable, so it survives a restart
+// or a reboot (the Bluetooth power setting survives them too).
+let markerDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    .appendingPathComponent("btsleep")
+let marker = markerDir.appendingPathComponent("bluetooth-off")
+func turnedOff() -> Bool { FileManager.default.fileExists(atPath: marker.path) }
+func restore() {
+    setPower(1)
+    try? FileManager.default.removeItem(at: marker)
+}
 var rootPort: io_connect_t = 0
 var notifyPort: IONotificationPortRef?
 var notifier: io_object_t = 0
@@ -36,9 +47,10 @@ rootPort = IORegisterForSystemPower(nil, &notifyPort, { _, _, type, arg in
     case kCanSystemSleep:
         IOAllowPowerChange(rootPort, Int(bitPattern: arg))
     case kSystemWillSleep:
-        if !turnedOff && getPower() == 1 {
+        if !turnedOff() && getPower() == 1 {
+            try? FileManager.default.createDirectory(at: markerDir, withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: marker.path, contents: nil)
             setPower(0)
-            turnedOff = true
             log("sleep: bluetooth off")
         }
         IOAllowPowerChange(rootPort, Int(bitPattern: arg))
@@ -53,14 +65,19 @@ CFRunLoopAddSource(CFRunLoopGetMain(), IONotificationPortGetRunLoopSource(notify
 NSWorkspace.shared.notificationCenter.addObserver(
     forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main
 ) { _ in
-    if turnedOff {
-        setPower(1)
-        turnedOff = false
+    if turnedOff() {
+        restore()
         log("wake: bluetooth on")
     }
 }
 
 log("started, bluetooth power = \(getPower())")
+// An earlier run turned Bluetooth off and then ended. If the display is awake, nothing
+// will send a screen wake, so restore now. If it sleeps, the wake handler restores later.
+if turnedOff() && CGDisplayIsAsleep(CGMainDisplayID()) == 0 {
+    restore()
+    log("start: bluetooth on (turned off by an earlier run)")
+}
 // NSWorkspace delivers screen wake notifications only to a process with an
 // NSApplication. The policy keeps it out of the Dock and the app switcher.
 NSApplication.shared.setActivationPolicy(.prohibited)
