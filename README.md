@@ -45,9 +45,20 @@ It is one Swift file of about 70 lines, with no dependencies. A LaunchAgent star
 ## Requirements
 
 - A Mac with Apple Silicon. I tested it on a MacBook Pro Mac17,8 (M5 Pro) with macOS 27.0.1.
-- The Xcode Command Line Tools for `swiftc`. Run `xcode-select --install` if you do not have them.
+- The Xcode Command Line Tools for `swiftc`. Run `xcode-select --install` if you do not have them. You need them for both install methods, because Homebrew builds btsleep from source.
 
 ## Install
+
+With Homebrew:
+
+```sh
+brew install elmarbeckmann/tap/btsleep
+brew services start btsleep
+```
+
+macOS may ask you to allow Bluetooth access for btsleep the first time it runs.
+
+### From source
 
 ```sh
 git clone https://github.com/elmarbeckmann/btsleep.git
@@ -59,9 +70,17 @@ make install
 
 You can delete the clone folder after the install. To put the binary somewhere else, run `make install PREFIX=/some/path`. It then goes to `/some/path/bin/btsleep`.
 
-macOS may ask you to allow Bluetooth access for btsleep the first time it runs.
+Use one of the two methods, not both, because two copies would both switch Bluetooth.
 
 ## Check that it works
+
+With Homebrew, the log is at `$(brew --prefix)/var/log/btsleep.log`:
+
+```sh
+tail "$(brew --prefix)/var/log/btsleep.log"
+```
+
+With the install from source, it is at `~/Library/Logs/btsleep.log`:
 
 ```sh
 tail ~/Library/Logs/btsleep.log
@@ -79,7 +98,19 @@ The next morning, `pmset -g log | grep -c centauri` should grow by a few per hou
 
 ## Turn it off
 
-To stop it and keep it from starting at the next login:
+With Homebrew, to stop it and keep it from starting at the next login:
+
+```sh
+brew services stop btsleep
+```
+
+Run `brew services start btsleep` to turn it on again. To remove it completely:
+
+```sh
+brew services stop btsleep && brew uninstall btsleep
+```
+
+With the install from source, to stop it and keep it from starting at the next login:
 
 ```sh
 launchctl disable gui/$(id -u)/dev.elmar.btsleep
