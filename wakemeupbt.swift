@@ -1,4 +1,4 @@
-// btsleep: turn Bluetooth off before system sleep and on again at full wake.
+// WakeMeUpBT: turn Bluetooth off before system sleep and on again at full wake.
 // Workaround for the wifibt/centauri DarkWake loop on M5 MacBook Pros.
 // Build: make   (see README.md)
 import AppKit
@@ -31,7 +31,7 @@ let kSystemWillSleep: UInt32 = 0xE000_0280
 // losing the user's state. It is a file, not a variable, so it survives a restart
 // or a reboot (the Bluetooth power setting survives them too).
 let markerDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    .appendingPathComponent("btsleep")
+    .appendingPathComponent("wakemeupbt")
 let marker = markerDir.appendingPathComponent("bluetooth-off")
 func turnedOff() -> Bool { FileManager.default.fileExists(atPath: marker.path) }
 func restore() {

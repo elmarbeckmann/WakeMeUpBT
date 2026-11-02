@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>dev.elmar.btsleep</string>
+    <string>dev.elmar.wakemeupbt</string>
     <key>ProgramArguments</key>
     <array>
         <string>__BIN__</string>
